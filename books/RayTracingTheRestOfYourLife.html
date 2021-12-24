@@ -1874,7 +1874,7 @@ $\theta$ and $\phi$ are:
 For uniform random numbers $r_1$ and $r_2$, we solve for the CDF of $\theta$ and $\phi$ so that we
 can invert the CDF to derive the random number generator.
 
-    $$ r_1 = \int_{0}^{\phi} a(\phi') d\phi' $$
+    $$ P(r_1) = \int_{0}^{\phi} a(\phi') d\phi' $$
     $$ = \int_{0}^{\phi} \frac{1}{2\pi} d\phi' $$
     $$ = \frac{\phi}{2\pi} $$
 
@@ -1883,12 +1883,12 @@ Invert to solve for $\phi$:
     $$ \phi = 2 \pi \cdot r_1 $$
 
 This should match with your intuition. To solve for a random $\phi$ you can take a uniform random
-number in the interval [0,1] and multiply by $2\pi$ to cover the full range of all possible $\phi$
-values, which is just [0,$2\pi$]. You may not have a fully formed intuition for how to solve for a
-random value of $\theta$, so let's walk through the math to help you get set up. We rewrite $\phi$
-as $\phi'$ and $\theta$ as $\theta'$ just like before, as a formality. For $\theta$ we have:
+number in the interval $[0, 1]$ and multiply by $2\pi$ to cover the full range of all possible
+$\phi$ values, which is just $[0, 2\pi]$. You may not have a fully formed intuition for how to solve
+for a random value of $\theta$, so let's walk through the math to help you get set up. We rewrite
+$\phi$ as $\phi'$ and $\theta$ as $\theta'$ just like before, as a formality. For $\theta$ we have:
 
-    $$ r_2 = \int_{0}^{\theta} b(\theta') d\theta' $$
+    $$ P(r_2) = \int_{0}^{\theta} b(\theta') d\theta' $$
     $$ = \int_{0}^{\theta} 2 \pi f(\theta') \sin(\theta') d\theta' $$
 
 </div>
@@ -1897,7 +1897,7 @@ as $\phi'$ and $\theta$ as $\theta'$ just like before, as a formality. For $\the
 Let’s try some different functions for $f()$. Let’s first try a uniform density on the sphere. The
 area of the unit sphere is $4\pi$, so a uniform $p(\omega) = \frac{1}{4\pi}$ on the unit sphere.
 
-    $$ r_2 = \int_{0}^{\theta} 2 \pi \frac{1}{4\pi} \sin(\theta') d\theta' $$
+    $$ P(r_2) = \int_{0}^{\theta} 2 \pi \frac{1}{4\pi} \sin(\theta') d\theta' $$
     $$ = \int_{0}^{\theta} \frac{1}{2} \sin(\theta') d\theta' $$
     $$ = \frac{-\cos(\theta)}{2} - \frac{-\cos(0)}{2} $$
     $$ = \frac{1 - \cos(\theta)}{2} $$
@@ -1917,7 +1917,8 @@ To generate a unit vector direction toward $(\theta,\phi)$ we convert to Cartesi
     $$ y = \sin(\phi) \cdot \sin(\theta) $$
     $$ z = \cos(\theta) $$
 
-And using the identity $\cos^2 + \sin^2 = 1$, we get the following in terms of random $(r_1,r_2)$:
+And using the identity $\cos^2(\theta) + \sin^2(\theta) = 1$, we get the following in terms of
+random $(r_1,r_2)$:
 
     $$ x = \cos(2\pi \cdot r_1)\sqrt{1 - (1-2 r_2)^2} $$
     $$ y = \sin(2\pi \cdot r_1)\sqrt{1 - (1-2 r_2)^2} $$
@@ -1985,7 +1986,9 @@ arbitrary with a known solution). First we'll solve the integral by hand:
 
     $$ \int_\omega \cos^3(\theta) dA $$
     $$ = \int_{0}^{2 \pi} \int_{0}^{\pi /2} \cos^3(\theta) \sin(\theta) d\theta d\phi $$
-    $$ = 2 \pi \int_{0}^{\pi/2} \cos^3(\theta) \sin(\theta) d\theta = \frac{\pi}{2} $$
+    $$ = 2 \pi \int_{0}^{\pi/2} \cos^3(\theta) \sin(\theta) d\theta $$
+    $$ \ldots $$
+    $$ = \frac{\pi}{2} $$
 </div>
 
 <div class='together'>
@@ -2259,6 +2262,7 @@ class because it won't really be more complicated than utility functions:
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     [Listing [class-onb]: <kbd>[onb.h]</kbd> Orthonormal basis class]
 
+
 <div class='together'>
 We can rewrite our Lambertian material using this to get:
 
@@ -2267,8 +2271,11 @@ We can rewrite our Lambertian material using this to get:
       public:
         ...
 
+
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ C++ highlight
         bool scatter(
             const ray& r_in, const hit_record& rec, color& alb, ray& scattered, double& pdf
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ C++
         ) const override {
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ C++ highlight
             onb uvw;
@@ -2287,6 +2294,49 @@ We can rewrite our Lambertian material using this to get:
     }
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     [Listing [scatter-onb]: <kbd>[material.h]</kbd> Scatter function, with orthonormal basis]
+</div>
+
+
+<div class='together'>
+We need to let the material set the `pdf`, rather than setting from within `ray_color`:
+
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ C++
+    class scene {
+        ...
+      private:
+        color ray_color(const ray& r, int depth) {
+            hit_record rec;
+
+            // If we've exceeded the ray bounce limit, no more light is gathered.
+            if (depth <= 0)
+                return color(0,0,0);
+
+            // If the ray hits nothing, return the background color.
+            if (!world.hit(r, interval(0.001, infinity), rec))
+                return background;
+
+            ray scattered;
+            color attenuation;
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ C++ highlight
+            double pdf;
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ C++
+            color color_from_emission = rec.mat->emitted(rec.u, rec.v, rec.p);
+
+
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ C++ highlight
+            if (!rec.mat->scatter(r, rec, attenuation, scattered, pdf))
+                return color_from_emission;
+
+            double scattering_pdf = rec.mat->scattering_pdf(r, rec, scattered);
+
+            color color_from_scatter =
+                (attenuation * scattering_pdf * ray_color(scattered, depth-1)) / pdf;
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ C++
+
+            return color_from_emission + color_from_scatter;
+        }
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    [Listing [ray-color-pdf-from-material]: <kbd>[scene.h]</kbd> Set the material from the Material scatter function]
 </div>
 
 <div class='together'>
