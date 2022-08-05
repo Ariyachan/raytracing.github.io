@@ -17,6 +17,15 @@
 #include <iostream>
 
 
+// Goals:
+// - Handle image width/height of 1
+// - Improve variable naming for scene and camera
+// - Rename loop variables to s/t?
+// - Constant-fold variables in the pixel iteration loops
+// - Iterate pixels from top down in spatial Y.
+// - camera::get_ray() takes normalized image coords, 0,0 upper left.
+
+
 class scene {
   public:
     void render() {

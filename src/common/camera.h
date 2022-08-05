@@ -35,6 +35,9 @@ class camera {
     }
 
     ray get_ray(double s, double t) const {
+        // Goal:
+        // Return the ray from the projection point to the image at the given image
+        // coordinates. 0,0 is image upper left pixel, and 1,1 is image lower right pixel.
         vec3 rd = lens_radius * random_in_unit_disk();
         vec3 offset = u * rd.x() + v * rd.y();
         const auto ray_time = random_double(0.0, 1.0);
